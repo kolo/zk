@@ -12,6 +12,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var zt = template.Must(template.New("zettel").Parse(`# {{.Timestamp}} {{.Title}}`))
+
 var zk = &cobra.Command{
 	Use: "zk",
 	Args: func(cmd *cobra.Command, args []string) error {
@@ -52,12 +54,7 @@ func createZettelFromTemplate(title string) (string, error) {
 	}
 	defer f.Close()
 
-	t, err := template.ParseFiles("templates/zettel.md")
-	if err != nil {
-		return "", errors.Wrap(err, "can't open zettel template")
-	}
-
-	if err = t.Execute(f, zettelTemplate{timestamp, title}); err != nil {
+	if err = zt.Execute(f, zettelTemplate{timestamp, title}); err != nil {
 		return "", errors.Wrap(err, "can't write template to the zettel file")
 	}
 
