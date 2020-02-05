@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"os/exec"
+	"path/filepath"
 	"strings"
 	"text/template"
 	"time"
@@ -12,7 +12,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var zt = template.Must(template.New("zettel").Parse(`# {{.Timestamp}} {{.Title}}`))
+const (
+	zettelTemplateStr = `---
+id: {{.Timestamp}}
+title: {{.Title}}
+tags:
+---
+
+`
+)
+
+var zt = template.Must(template.New("zettel").Parse(zettelTemplateStr))
 
 var zk = &cobra.Command{
 	Use: "zk",
@@ -26,14 +36,12 @@ var zk = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		title := strings.Join(args, "_")
 
-		filename, err := createZettelFromTemplate(title)
+		name, err := createZettelFromTemplate(title)
 		if err != nil {
 			return err
 		}
 
-		if err = exec.Command("code", filename).Run(); err != nil {
-			return errors.Wrap(err, "can't start editor")
-		}
+		fmt.Println(name)
 
 		return nil
 	},
@@ -46,23 +54,27 @@ type zettelTemplate struct {
 
 func createZettelFromTemplate(title string) (string, error) {
 	timestamp := currentTimestamp()
-	filename := fmt.Sprintf("%[1]s-%[2]s.md", timestamp, strings.ToLower(title))
-
-	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE, 0755)
+	name := fmt.Sprintf("%[1]s-%[2]s.md", timestamp, strings.ToLower(title))
+	path, err := filepath.Abs(name)
 	if err != nil {
-		return "", errors.Wrap(err, "can't create zettel file")
+		return "", errors.Wrapf(err, "can't get absolute path for %s", name)
+	}
+
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0755)
+	if err != nil {
+		return "", errors.Wrapf(err, "can't create %s", path)
 	}
 	defer f.Close()
 
 	if err = zt.Execute(f, zettelTemplate{timestamp, title}); err != nil {
-		return "", errors.Wrap(err, "can't write template to the zettel file")
+		return "", errors.Wrapf(err, "can't write template to %s", path)
 	}
 
-	return filename, err
+	return path, err
 }
 
 func currentTimestamp() string {
-	return time.Now().Format("20060102_1504")
+	return time.Now().Format("200601021504")
 }
 
 // Execute runs root command.
